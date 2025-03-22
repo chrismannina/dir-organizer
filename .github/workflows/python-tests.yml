@@ -27,14 +27,15 @@ jobs:
         # Print diagnostic information
         echo "Current directory: $(pwd)"
         ls -la
-        # Install dependencies with verbose flag to see what's happening
-        pip install -v -r requirements-dev.txt
-        # Direct installation as fallback
-        pip install pydantic>=2.0.0
-        # Make sure the package is installed
+        # Install direct dependencies first to ensure they're available
+        pip install pydantic>=2.0.0 tqdm python-magic python-docx PyPDF2 llama-index openai click rich
+        # Install the package in development mode
         pip install -e .
-        # Check installed packages
+        # Install test dependencies
+        pip install pytest pytest-cov
+        # Verify installations
         pip list | grep pydantic
+        pip list | grep tqdm
 
     - name: Lint with flake8
       run: |
@@ -46,8 +47,9 @@ jobs:
 
     - name: Run tests
       run: |
-        # Add python path explicitly
-        PYTHONPATH=src pytest tests/ --cov=llm_organizer
+        # Add python path explicitly and list directory contents for debugging
+        ls -la src/llm_organizer/core/
+        PYTHONPATH=src pytest tests/ --cov=llm_organizer -v
       env:
         # Use dummy API key for testing
         OPENAI_API_KEY: 'sk-dummy-key-for-testing'
