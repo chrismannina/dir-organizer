@@ -116,62 +116,62 @@ class FileOrganizer:
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Directory Organization Plan</title>
             <style>
-                body {
+                body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
                     line-height: 1.6;
                     color: #333;
                     max-width: 1200px;
                     margin: 0 auto;
                     padding:.2rem;
-                }
-                h1, h2, h3 {
+                }}
+                h1, h2, h3 {{
                     color: #2c3e50;
-                }
-                .header {
+                }}
+                .header {{
                     background-color: #f8f9fa;
                     padding: 1rem;
                     border-radius: 5px;
                     margin-bottom: 2rem;
                     border-left: 5px solid #6c5ce7;
-                }
-                .summary {
+                }}
+                .summary {{
                     display: flex;
                     flex-wrap: wrap;
                     gap: 1rem;
                     margin-bottom: 2rem;
-                }
-                .summary-item {
+                }}
+                .summary-item {{
                     flex: 1;
                     min-width: 200px;
                     background-color: #f1f2f6;
                     padding: 1rem;
                     border-radius: 5px;
                     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                }
-                table {
+                }}
+                table {{
                     width: 100%;
                     border-collapse: collapse;
                     margin-bottom: 2rem;
                     box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-                }
-                th, td {
+                }}
+                th, td {{
                     padding: 12px 15px;
                     text-align: left;
                     border-bottom: 1px solid #ddd;
-                }
-                th {
+                }}
+                th {{
                     background-color: #6c5ce7;
                     color: white;
                     position: sticky;
                     top: 0;
-                }
-                tr:nth-child(even) {
+                }}
+                tr:nth-child(even) {{
                     background-color: #f8f9fa;
-                }
-                tr:hover {
+                }}
+                tr:hover {{
                     background-color: #f1f2f6;
-                }
-                .tag {
+                }}
+                .tag {{
                     display: inline-block;
                     background-color: #e2e8f0;
                     color: #4a5568;
@@ -179,33 +179,33 @@ class FileOrganizer:
                     margin: 2px;
                     border-radius: 12px;
                     font-size: 0.85em;
-                }
-                .folders {
+                }}
+                .folders {{
                     background-color: #f1f2f6;
                     padding: 1rem;
                     border-radius: 5px;
                     margin-bottom: 2rem;
-                }
-                .footer {
+                }}
+                .footer {{
                     text-align: center;
                     font-size: 0.9em;
                     color: #718096;
                     margin-top: 3rem;
                     padding-top: 1rem;
                     border-top: 1px solid #e2e8f0;
-                }
-                @media print {
-                    th {
+                }}
+                @media print {{
+                    th {{
                         background-color: #ddd !important;
                         color: black !important;
-                    }
-                    .tag {
+                    }}
+                    .tag {{
                         border: 1px solid #ccc;
-                    }
-                    table {
+                    }}
+                    table {{
                         box-shadow: none;
-                    }
-                }
+                    }}
+                }}
             </style>
         </head>
         <body>
