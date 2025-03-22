@@ -1,0 +1,60 @@
+# LLM Directory Organizer - Example Configuration
+# Copy this file to ~/.config/llm-organizer/config.yaml and modify as needed
+
+# Language Model Configuration
+llm:
+  # API key can be set here or via environment variable OPENAI_API_KEY
+  # api_key: "your-api-key-here"  
+  model_name: "gpt-3.5-turbo"
+  max_tokens: 1000
+  temperature: 0.2
+
+# Scanner Configuration
+scanner:
+  # Text file extensions that will be analyzed for content
+  text_extensions: 
+    - ".txt"
+    - ".md"
+    - ".py"
+    - ".js"
+    - ".html"
+    - ".css"
+    - ".json"
+    - ".yaml"
+    - ".yml"
+  
+  # Maximum file size in megabytes to be analyzed
+  max_file_size_mb: 5
+  
+  # Patterns to exclude from scanning
+  exclude_patterns:
+    - "*.log"
+    - "temp*"
+    - "**/__pycache__/**"
+    - "**/node_modules/**"
+  
+  # Whether to exclude hidden files and directories
+  exclude_hidden: true
+
+# Organizer Configuration
+organizer:
+  # Naming scheme for folders (camelCase, snake_case, PascalCase, Title Case)
+  naming_scheme: "Title Case"
+  
+  # Maximum folder depth for organization
+  max_folder_depth: 3
+  
+  # Whether to preserve project directories
+  preserve_projects: true
+  
+  # Markers that indicate a directory is a project and should be preserved
+  project_markers:
+    - ".git"
+    - "package.json"
+    - "pyproject.toml"
+    - "Makefile"
+    - "CMakeLists.txt"
+
+# Application Configuration
+data_dir: "~/.llm-organizer"
+preview_default: true 

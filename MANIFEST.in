@@ -1,0 +1,8 @@
+include LICENSE
+include README.md
+include pyproject.toml
+
+recursive-include src/llm_organizer/data *.yaml *.json *.yml *.example
+recursive-include tests *.py *.yaml *.json *.txt
+
+global-exclude *.py[cod] __pycache__/* *.so *.dylib .DS_Store 
