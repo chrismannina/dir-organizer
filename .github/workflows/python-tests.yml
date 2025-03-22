@@ -32,7 +32,7 @@ jobs:
         # Install the package in development mode
         pip install -e .
         # Install test dependencies
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov flake8 black
         # Verify installations
         pip list | grep pydantic
         pip list | grep tqdm
