@@ -30,6 +30,22 @@ classifiers = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+pythonpath = ["src"]
+addopts = "--cov=llm_organizer"
+
+[tool.coverage.run]
+source = ["llm_organizer"]
+omit = ["*/test_*.py", "*/conftest.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
 
 [tool.black]
 line-length = 88
@@ -37,4 +53,4 @@ target-version = ["py38"]
 
 [tool.isort]
 profile = "black"
-line_length = 88 
+line_length = 88

@@ -3,7 +3,7 @@
 Setup script for the LLM Directory Organizer package.
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="llm-organizer",
@@ -24,6 +24,10 @@ setup(
         "openai>=1.0.0",
         "python-dotenv>=0.19.0",
         "pyyaml>=6.0",
+        "python-docx>=0.8.11",
+        "PyPDF2>=3.0.0",
+        "python-magic>=0.4.24",
+        "tqdm>=4.64.0",
     ],
     entry_points={
         "console_scripts": [
@@ -43,4 +47,4 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Topic :: Utilities",
     ],
-) 
+)

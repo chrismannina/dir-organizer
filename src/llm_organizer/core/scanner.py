@@ -7,10 +7,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Pattern
 
-import docx
-import magic
-import PyPDF2
 from tqdm import tqdm
+
+# Conditionally import document processing libraries
+try:
+    import magic
+
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
+
+try:
+    from docx import Document
+
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
+try:
+    import PyPDF2
+
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
 
 
 class DirectoryScanner:
@@ -28,20 +47,31 @@ class DirectoryScanner:
             ".yaml",
             ".yml",
         }
-        self.supported_binary = {
-            ".pdf": self._extract_pdf_text,
-            ".docx": self._extract_docx_text,
-        }
+        self.supported_binary = {}
+
+        # Only add supported binary handlers if libraries are available
+        if PDF_AVAILABLE:
+            self.supported_binary[".pdf"] = self._extract_pdf_text
+        if DOCX_AVAILABLE:
+            self.supported_binary[".docx"] = self._extract_docx_text
+
         self.exclude_patterns = exclude_patterns or []
         self.compiled_patterns = self._compile_patterns(self.exclude_patterns)
 
     def _compile_patterns(self, patterns: List[str]) -> List[Pattern]:
-        """Compile glob patterns to regex patterns for faster matching."""
+        """Compile glob patterns to regex patterns."""
         compiled = []
         for pattern in patterns:
-            # Convert glob pattern to regex pattern
-            regex_pattern = fnmatch.translate(pattern)
-            compiled.append(re.compile(regex_pattern))
+            # Check if it's a directory pattern (ending with /*)
+            if pattern.endswith("/*"):
+                # Convert to a pattern that matches any file in the directory
+                dir_pattern = pattern[:-2]
+                regex_pattern = f"^.*{re.escape(dir_pattern)}(/|\\\\).*$"
+                compiled.append(re.compile(regex_pattern))
+            else:
+                # Convert glob pattern to regex pattern
+                regex_pattern = fnmatch.translate(pattern)
+                compiled.append(re.compile(regex_pattern))
         return compiled
 
     def _should_exclude(self, path: Path) -> bool:
@@ -133,7 +163,7 @@ class DirectoryScanner:
         """
         try:
             stats = file_path.stat()
-            mime_type = magic.from_file(str(file_path), mime=True)
+            mime_type = self._get_mime_type(file_path)
 
             metadata = {
                 "path": str(file_path),
@@ -164,8 +194,37 @@ class DirectoryScanner:
             print(f"Error getting metadata for {file_path}: {str(e)}")
             return None
 
+    def _get_mime_type(self, file_path: Path) -> str:
+        """Get the MIME type of a file."""
+        if MAGIC_AVAILABLE:
+            try:
+                return magic.from_file(str(file_path), mime=True)
+            except Exception:
+                pass
+
+        # Fallback to extension-based mime type guess
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in [".txt", ".md"]:
+            return "text/plain"
+        elif ext == ".html":
+            return "text/html"
+        elif ext == ".py":
+            return "text/x-python"
+        elif ext == ".js":
+            return "application/javascript"
+        elif ext == ".json":
+            return "application/json"
+        elif ext == ".pdf":
+            return "application/pdf"
+        elif ext == ".docx":
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            return "application/octet-stream"
+
     def _extract_pdf_text(self, file_path: Path) -> Optional[str]:
         """Extract text content from PDF files."""
+        if not PDF_AVAILABLE:
+            return "PDF library not available"
         try:
             text = []
             with open(file_path, "rb") as file:
@@ -178,8 +237,11 @@ class DirectoryScanner:
 
     def _extract_docx_text(self, file_path: Path) -> Optional[str]:
         """Extract text content from DOCX files."""
+        if not DOCX_AVAILABLE:
+            return "DOCX library not available"
         try:
-            doc = docx.Document(file_path)
-            return "\n".join([paragraph.text for paragraph in doc.paragraphs])
-        except Exception:
+            doc = Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs])
+        except Exception as e:
+            print(f"Error extracting text from {file_path}: {e}")
             return None

@@ -54,4 +54,4 @@ build: clean
 
 dist: build
 	twine check dist/*
-	@echo "To upload to PyPI, run: twine upload dist/*" 
+	@echo "To upload to PyPI, run: twine upload dist/*"
