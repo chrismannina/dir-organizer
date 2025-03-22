@@ -139,6 +139,15 @@ This document outlines planned improvements and features for the LLM Directory O
   *Notes: Start with basic documentation early, then expand as features stabilize.*
 
 ### Performance Optimizations
+- [ ] **P1** Implement concurrency for faster processing
+  - [ ] Add async/await support for LLM API calls
+  - [ ] Implement thread pool for parallel file analysis
+  - [ ] Add progress tracking for concurrent operations
+  - [ ] Include throttling to prevent API rate limiting
+  - [ ] Ensure thread safety for shared resources
+  
+  *Notes: This is critical for performance as LLM API calls are the primary bottleneck. Implementing concurrency can drastically reduce processing time for large directories.*
+
 - [ ] **P2** Optimize performance
   - [ ] Implement parallel processing for file analysis
   - [ ] Add batch processing for API calls to reduce overhead
