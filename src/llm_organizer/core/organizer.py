@@ -35,7 +35,7 @@ class FileOrganizer:
             original_path = Path(result["path"])
 
             if not self.base_dir:
-                self.base_dir = original_path.paren
+                self.base_dir = original_path.parent
 
             # Create folder path
             folder_name = self._sanitize_folder_name(result["suggested_folder"])

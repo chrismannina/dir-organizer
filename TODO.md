@@ -257,3 +257,8 @@ This document outlines planned improvements and features for the LLM Directory O
 - [ ] Create developer guide for contributors
 - [ ] Add screenshots to README
 - [x] Document configuration options
+
+
+- [ ] Remove duplicate API tests at beginning of run "Testing API connection before analysis..."
+- [ ] Need a better method to put exclusions
+- [ ] Really need to fix the categorizations - and allow for sub directories. it should be a call to 4o or something to really organize everything
