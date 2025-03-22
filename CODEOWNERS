@@ -1,0 +1,15 @@
+# LLM Directory Organizer CODEOWNERS file
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+*       @yourusername
+
+# Core modules
+/src/llm_organizer/core/       @yourusername
+
+# CLI and configuration
+/src/llm_organizer/cli/        @yourusername
+/src/llm_organizer/config/     @yourusername
+
+# Testing
+/tests/                        @yourusername

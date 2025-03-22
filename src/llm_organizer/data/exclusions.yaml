@@ -1,0 +1,63 @@
+---
+# Directory Organizer Exclusion Patterns
+#
+# This file contains patterns for files and directories that should be excluded
+# from scanning and organization. You can use this file as a template for creating
+# your own custom exclusion list.
+#
+# Usage:
+#   python main.py organize ~/Documents --exclude-file exclusions.yaml
+#
+# Format:
+# - Pattern strings use glob syntax (* matches any number of characters)
+# - Paths can be absolute or relative to the scanned directory
+# - Comments start with #
+
+exclusions:
+  - "**/.git/**"              # Git repositories
+  - "**/.svn/**"              # SVN repositories
+  - "**/__pycache__/**"       # Python cache directories
+  - "**/node_modules/**"      # Node.js modules
+  - "**/venv/**"              # Python virtual environments
+  - "**/env/**"               # Alternative Python venv name
+  - "**/.venv/**"             # Another Python venv variation
+  - "**/build/**"             # Build directories
+  - "**/dist/**"              # Distribution directories
+  - "**/.idea/**"             # JetBrains IDE config
+  - "**/.vscode/**"           # VS Code config
+  - "**/.DS_Store"            # macOS file system metadata
+  - "**/Thumbs.db"            # Windows thumbnail cache
+
+  # Common temporary files
+  - "**/*.tmp"                # Temporary files
+  - "**/*.temp"               # Alternative temp extension
+  - "**/*.bak"                # Backup files
+  - "**/*.swp"                # Vim swap files
+  - "**/*.log"                # Log files
+  - "**/tmp/**"               # Temp directories
+
+  # Cache directories
+  - "**/.cache/**"            # Cache directories
+  - "**/.npm/**"              # NPM cache
+  - "**/.yarn/**"             # Yarn cache
+
+  # Byte-compiled files
+  - "**/*.pyc"                # Python bytecode
+  - "**/*.pyd"                # Python DLL
+  - "**/*.pyo"                # Python optimized bytecode
+
+  # Uncomment these if you want to exclude media files
+  # "**/*.jpg"              # JPEG images
+  # "**/*.jpeg"             # JPEG images
+  # "**/*.png"              # PNG images
+  # "**/*.gif"              # GIF images
+  # "**/*.mp3"              # MP3 audio
+  # "**/*.mp4"              # MP4 videos
+  # "**/*.avi"              # AVI videos
+  # "**/*.mov"              # QuickTime videos
+
+  # Uncomment these if you want to exclude document files
+  # "**/*.pdf"              # PDF documents
+  # "**/*.docx"             # Word documents
+  # "**/*.xlsx"             # Excel spreadsheets
+  # "**/*.pptx"             # PowerPoint presentations
