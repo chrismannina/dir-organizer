@@ -3,6 +3,7 @@ from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.settings import Settings
 from llama_index.llms.openai import OpenAI
 from tqdm import tqdm
+import os
 
 class FileIndexer:
     """Handles file indexing and LLM analysis using LlamaIndex."""
@@ -19,6 +20,34 @@ class FileIndexer:
         Settings.chunk_size = 512
         Settings.chunk_overlap = 20
     
+    def test_api_connection(self) -> bool:
+        """
+        Test the API connection to ensure it's working properly.
+        
+        Returns:
+            bool: True if connection is successful, False otherwise
+        """
+        try:
+            # Create a simple test document
+            doc_text = "This is a test document to verify API connectivity."
+            document = Document(text=doc_text)
+            
+            # Create a simple index
+            index = VectorStoreIndex.from_documents([document])
+            
+            # Try a simple query
+            query_engine = index.as_query_engine()
+            response = query_engine.query("What is this document about?")
+            
+            # If we get here, it worked
+            print(f"✅ API connection successful!")
+            print(f"Response: {response}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error connecting to OpenAI API: {type(e).__name__}: {str(e)}")
+            return False
+            
     def analyze_files(self, files_metadata: List[Dict]) -> List[Dict]:
         """
         Analyze files using LlamaIndex and LLM.
@@ -29,6 +58,17 @@ class FileIndexer:
         Returns:
             List[Dict]: List of analysis results for each file
         """
+        # Test API connection before processing files
+        print("\n🔍 Testing API connection before analysis...")
+        if not self.test_api_connection():
+            print("❌ API connection test failed. Please check your API key and try again.")
+            return [{
+                'path': metadata['path'],
+                'tags': ['unclassified'],
+                'suggested_folder': 'other',
+                'description': 'Could not analyze file due to API connection issues'
+            } for metadata in files_metadata]
+        
         results = []
         
         for metadata in tqdm(files_metadata, desc="Analyzing files"):
