@@ -216,4 +216,35 @@ This document outlines planned improvements and features for the LLM Directory O
 - Complete SQLite implementation
 - Add CI/CD pipeline
 - Improve reporting capabilities
-- Begin work on packaging for distribution 
+- Begin work on packaging for distribution
+
+## High Priority
+- [ ] Update all imports in remaining modules to match new package structure
+- [ ] Move sample configuration files to the project
+- [ ] Create sample exclusions file templates
+- [ ] Make sure test suite is fully functional
+- [ ] Add docstrings to all modules, classes and functions
+- [ ] Verify CLI commands work correctly with new structure
+
+## Medium Priority
+- [ ] Add type hints to all functions
+- [ ] Improve error handling throughout the application
+- [ ] Add more logging for better debugging
+- [ ] Create user configuration wizard
+- [ ] Add progress bars for long-running operations
+- [ ] Implement better file content extraction for PDFs and other binary formats
+
+## Low Priority
+- [ ] Create a web interface
+- [ ] Add support for more configuration formats
+- [ ] Implement plugin system for custom file analysis
+- [ ] Create a desktop GUI application
+- [ ] Support for multiple organization presets
+- [ ] Add file and folder tagging system
+
+## Documentation
+- [ ] Complete API documentation
+- [ ] Write user guide with examples
+- [ ] Create developer guide for contributors
+- [ ] Add screenshots to README
+- [ ] Document configuration options 
