@@ -74,6 +74,14 @@ class OrganizerConfig(BaseModel):
         "snake_case",
         description="Naming scheme for created folders (snake_case, camel_case, pascal_case)",
     )
+    tags_naming_scheme: str = Field(
+        "snake_case",
+        description="Naming scheme for tags (snake_case, camel_case, pascal_case, lower_case)",
+    )
+    categories_naming_scheme: str = Field(
+        "pascal_case",
+        description="Naming scheme for categories (snake_case, camel_case, pascal_case, title_case)",
+    )
     max_folder_depth: int = Field(3, description="Maximum depth of folder hierarchy")
     preserve_projects: bool = Field(
         True, description="Whether to preserve project directories (git repos, etc.)"
@@ -81,6 +89,9 @@ class OrganizerConfig(BaseModel):
     project_markers: List[str] = Field(
         [".git", "package.json", "pyproject.toml", "Cargo.toml", "Makefile"],
         description="Files/directories that indicate a project directory",
+    )
+    use_cached_analysis: bool = Field(
+        True, description="Whether to use cached analysis from database when available"
     )
 
 

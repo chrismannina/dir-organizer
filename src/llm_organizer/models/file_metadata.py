@@ -202,6 +202,91 @@ class MetadataStore:
 
         return results
 
+    def file_exists(self, file_path: str) -> bool:
+        """
+        Check if a file exists in the database.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            bool: True if the file exists in the database, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM file_metadata WHERE path = ? LIMIT 1", (file_path,)
+        )
+        return cursor.fetchone() is not None
+
+    def has_analysis(self, file_path: str) -> bool:
+        """
+        Check if a file has analysis results in the database.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            bool: True if analysis exists, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM file_analysis WHERE path = ? LIMIT 1", (file_path,)
+        )
+        return cursor.fetchone() is not None
+
+    def get_file_analysis(self, file_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Get analysis for a specific file.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Optional[Dict]: Analysis data or None if not found
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT f.path, f.name, f.extension, f.mime_type, f.category,
+                   a.tags, a.description, a.suggested_folder
+            FROM file_metadata f
+            JOIN file_analysis a ON f.path = a.path
+            WHERE f.path = ?
+            """,
+            (file_path,),
+        )
+
+        row = cursor.fetchone()
+        if row:
+            return {
+                "path": row[0],
+                "name": row[1],
+                "extension": row[2],
+                "mime_type": row[3],
+                "category": row[4],
+                "tags": json.loads(row[5]),
+                "description": row[6],
+                "suggested_folder": row[7],
+            }
+        return None
+
+    def get_analysis_batch(self, file_paths: List[str]) -> List[Dict[str, Any]]:
+        """
+        Get analysis for multiple files.
+
+        Args:
+            file_paths: List of file paths
+
+        Returns:
+            List[Dict]: List of analysis results
+        """
+        results = []
+        for path in file_paths:
+            analysis = self.get_file_analysis(path)
+            if analysis:
+                results.append(analysis)
+        return results
+
     def close(self):
         """Close the database connection."""
         self.conn.close()

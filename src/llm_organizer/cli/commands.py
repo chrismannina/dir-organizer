@@ -118,7 +118,13 @@ def organize_command(
         # Initialize components
         scanner = DirectoryScanner(exclude_patterns=exclusions, config=config)
         indexer = FileIndexer(
-            {"openai_api_key": config.llm.api_key, "model_name": config.llm.model_name}
+            {
+                "openai_api_key": config.llm.api_key,
+                "model_name": config.llm.model_name,
+                "tags_naming_scheme": config.organizer.tags_naming_scheme,
+                "categories_naming_scheme": config.organizer.categories_naming_scheme,
+                "naming_scheme": config.organizer.naming_scheme,
+            }
         )
         organizer = FileOrganizer()
         logger = OperationLogger()
@@ -131,6 +137,13 @@ def organize_command(
         metadata_store = MetadataStore(db_path)
 
         console.print(f"\n💾 Using metadata database: {db_path}", style="blue")
+
+        # Check if we should use cached analysis
+        use_cached = config.organizer.use_cached_analysis
+        if use_cached:
+            console.print("🔄 Using cached analysis when available", style="blue")
+        else:
+            console.print("🔄 Reanalyzing all files (cache disabled)", style="yellow")
 
         # Display exclusion patterns if any
         if exclusions:
@@ -207,7 +220,9 @@ def organize_command(
         # Analyze files
         console.print("\n🔍 Analyzing files with AI...")
         analysis_results = indexer.analyze_files(
-            scanner.get_files() if hasattr(scanner, "get_files") else files_metadata
+            scanner.get_files() if hasattr(scanner, "get_files") else files_metadata,
+            metadata_store=metadata_store,
+            use_cached=use_cached,
         )
 
         # Save analysis results to database

@@ -1,11 +1,15 @@
 """File indexer module for analyzing files with LLM."""
 
+import json
+import re
 from typing import Dict, List
 
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.settings import Settings
 from llama_index.llms.openai import OpenAI
 from tqdm import tqdm
+
+from llm_organizer.utils import format_naming_scheme
 
 
 class FileIndexer:
@@ -18,10 +22,18 @@ class FileIndexer:
         Args:
             config (Dict): Configuration dictionary containing API keys and model settings
         """
+        self.config = config
         self.llm = OpenAI(api_key=config["openai_api_key"], model=config["model_name"])
         Settings.llm = self.llm
         Settings.chunk_size = 512
         Settings.chunk_overlap = 20
+
+        # Set default naming schemes
+        self.tags_naming_scheme = config.get("tags_naming_scheme", "snake_case")
+        self.categories_naming_scheme = config.get(
+            "categories_naming_scheme", "pascal_case"
+        )
+        self.folder_naming_scheme = config.get("naming_scheme", "snake_case")
 
     def test_api_connection(self) -> bool:
         """
@@ -51,12 +63,16 @@ class FileIndexer:
             print(f"❌ API connection failed: {str(e)}")
             return False
 
-    def analyze_files(self, files_metadata: List[Dict]) -> List[Dict]:
+    def analyze_files(
+        self, files_metadata: List[Dict], metadata_store=None, use_cached=True
+    ) -> List[Dict]:
         """
         Analyze files using LLM to extract tags and suggested folders.
 
         Args:
             files_metadata (List[Dict]): List of file metadata dictionaries
+            metadata_store: Optional MetadataStore instance to check for cached results
+            use_cached: Whether to use cached analysis results
 
         Returns:
             List[Dict]: List of file metadata with analysis results added
@@ -78,8 +94,36 @@ class FileIndexer:
             ]
 
         results = []
+        files_to_analyze = []
 
-        for metadata in tqdm(files_metadata, desc="Analyzing files"):
+        # Check for cached results if metadata_store is provided and use_cached is True
+        if metadata_store and use_cached:
+            for metadata in files_metadata:
+                file_path = metadata["path"]
+                if metadata_store.has_analysis(file_path):
+                    # Use cached result
+                    cached_analysis = metadata_store.get_file_analysis(file_path)
+                    if cached_analysis:
+                        results.append(cached_analysis)
+                        continue
+
+                # If no cached result, add to list of files to analyze
+                files_to_analyze.append(metadata)
+        else:
+            # If not using cache, analyze all files
+            files_to_analyze = files_metadata
+
+        # Print stats on cache usage
+        if metadata_store and use_cached:
+            print(
+                f"\n📊 Using {len(results)} cached results, analyzing {len(files_to_analyze)} new files"
+            )
+
+        # If no files need analysis, return the cached results
+        if not files_to_analyze:
+            return results
+
+        for metadata in tqdm(files_to_analyze, desc="Analyzing files"):
             try:
                 # Create document for indexing
                 doc_text = self._prepare_document_text(metadata)
@@ -109,11 +153,29 @@ class FileIndexer:
                     "Return only the description text."
                 )
 
+                # Parse and format tags according to naming scheme
+                tags = self._parse_tags_response(str(tags_response))
+                formatted_tags = [
+                    format_naming_scheme(tag, self.tags_naming_scheme) for tag in tags
+                ]
+
+                # Format folder name according to naming scheme
+                suggested_folder = format_naming_scheme(
+                    str(folder_response).strip(), self.folder_naming_scheme
+                )
+
+                # Get category from metadata or use a default
+                category = metadata.get("category", "Other")
+                formatted_category = format_naming_scheme(
+                    category, self.categories_naming_scheme
+                )
+
                 analysis = {
                     "path": metadata["path"],
-                    "tags": self._parse_tags_response(str(tags_response)),
-                    "suggested_folder": str(folder_response).strip(),
+                    "tags": formatted_tags,
+                    "suggested_folder": suggested_folder,
                     "description": str(description_response).strip(),
+                    "category": formatted_category,
                 }
 
                 results.append(analysis)
@@ -127,6 +189,7 @@ class FileIndexer:
                         "tags": ["unclassified"],
                         "suggested_folder": "other",
                         "description": "Could not analyze file content",
+                        "category": metadata.get("category", "Other"),
                     }
                 )
 
@@ -151,29 +214,38 @@ class FileIndexer:
         return "\n".join(parts)
 
     def _parse_tags_response(self, response: str) -> List[str]:
-        """
-        Parse the response from the LLM to extract tags.
-
-        Args:
-            response: The response string from the LLM
-
-        Returns:
-            List of tag strings
-        """
+        """Parse LLM response to extract tags."""
         try:
-            # Try to extract JSON array from response
-            import json
-            import re
-
-            # Look for JSON array pattern in the string
-            json_match = re.search(r"\[.*\]", response, re.DOTALL)
+            # Try to extract JSON array from the response
+            json_match = re.search(r"\[(.*?)\]", response.replace("\n", ""))
             if json_match:
-                json_str = json_match.group(0)
-                tags = json.loads(json_str)
-                return tags
+                try:
+                    # Try to parse the extracted JSON
+                    tags_list = json.loads(f"[{json_match.group(1)}]")
+                    if isinstance(tags_list, list):
+                        # Filter out non-string items and cleanup
+                        return [
+                            str(tag).strip()
+                            for tag in tags_list
+                            if isinstance(tag, str)
+                        ]
+                except json.JSONDecodeError:
+                    pass
 
-            # Fall back to simple string splitting if JSON parsing fails
-            return [tag.strip() for tag in response.split(",")]
-        except (ValueError, KeyError, IndexError) as e:
-            print(f"Error processing file analysis: {e}")
-            return ["unclassified"]
+            # If can't extract JSON, use a simpler approach
+            if "," in response:
+                # Split by commas
+                tags = [tag.strip().strip("\"'[]") for tag in response.split(",")]
+                return [tag for tag in tags if tag]
+            else:
+                # Split by spaces if no commas (less reliable)
+                words = response.strip("[]\"' ").split()
+                return [
+                    word for word in words if len(word) > 2
+                ]  # Filter out short words
+
+        except Exception:
+            pass
+
+        # Fallback to unclassified
+        return ["unclassified"]
