@@ -156,7 +156,10 @@ The formatting will be handled automatically by the system based on user prefere
 
     def _save_schema(self, schema: Dict) -> None:
         """Save the organization schema to a file for future reference."""
-        schema_path = self.base_dir / "organization_schema.json"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        app_data_dir = self._get_app_data_folder()
+        schema_path = app_data_dir / f"organization_schema_{timestamp}.json"
+
         with open(schema_path, "w", encoding="utf-8") as f:
             json.dump(schema, f, indent=2, ensure_ascii=False)
         console.print(f"\n💾 Organization schema saved to: {schema_path}", style="blue")
@@ -495,7 +498,8 @@ The formatting will be handled automatically by the system based on user prefere
             str: Path to the generated HTML file
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = self.base_dir / f"organization_plan_{timestamp}.html"
+        app_data_dir = self._get_app_data_folder()
+        report_path = app_data_dir / f"organization_plan_{timestamp}.html"
 
         # Prepare the HTML conten
         html_content = """
@@ -737,7 +741,9 @@ The formatting will be handled automatically by the system based on user prefere
         Returns:
             str: Path to the generated TOC file
         """
-        toc_path = self.base_dir / "file_organization_toc.json"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        app_data_dir = self._get_app_data_folder()
+        toc_path = app_data_dir / f"file_organization_toc_{timestamp}.json"
 
         toc_data = {
             "organization_date": self._get_iso_date(),
@@ -775,3 +781,13 @@ The formatting will be handled automatically by the system based on user prefere
     def _get_iso_date(self) -> str:
         """Get current date in ISO format."""
         return datetime.now().isoformat()
+
+    def _get_app_data_folder(self) -> Path:
+        """Get or create the application data folder within the base directory."""
+        app_data_dir = self.base_dir / ".llm_organizer"
+
+        # Create the folder if it doesn't exist
+        if not app_data_dir.exists():
+            app_data_dir.mkdir(exist_ok=True)
+
+        return app_data_dir
