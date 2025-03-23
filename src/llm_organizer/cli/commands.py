@@ -2,6 +2,7 @@
 
 import os
 import webbrowser
+from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -57,7 +58,7 @@ def organize_command(
     exclude: Optional[List[str]] = None,
     exclude_file: Optional[str] = None,
     open_report: bool = False,
-    intelligent: bool = False,
+    intelligent: bool = True,
     config: Optional[AppConfig] = None,
 ) -> None:
     """
@@ -95,7 +96,10 @@ def organize_command(
         api_key = config.llm.api_key
         masked_key = f"{api_key[:10]}...{api_key[-4:]}"
         console.print(f"\n🔑 Using OpenAI API key: {masked_key}", style="blue")
-        console.print(f"Using model: {config.llm.model_name}", style="blue")
+        console.print(
+            f"Using models: {config.llm.model_name} (analysis) / {config.llm.organization_model} (organization)",
+            style="blue",
+        )
 
         # Combine exclusions from command line and file
         exclusions = list(exclude) if exclude else []
@@ -112,12 +116,21 @@ def organize_command(
             exclusions.extend(config.scanner.exclude_patterns)
 
         # Initialize components
-        scanner = DirectoryScanner(exclude_patterns=exclusions)
+        scanner = DirectoryScanner(exclude_patterns=exclusions, config=config)
         indexer = FileIndexer(
             {"openai_api_key": config.llm.api_key, "model_name": config.llm.model_name}
         )
         organizer = FileOrganizer()
         logger = OperationLogger()
+
+        # Initialize SQLite database for storing metadata
+        from llm_organizer.models.file_metadata import MetadataStore
+
+        db_path = os.path.join(os.path.expanduser(config.data_dir), "file_metadata.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        metadata_store = MetadataStore(db_path)
+
+        console.print(f"\n💾 Using metadata database: {db_path}", style="blue")
 
         # Display exclusion patterns if any
         if exclusions:
@@ -164,16 +177,60 @@ def organize_command(
             )
             return
 
+        # Save file metadata to database
+        console.print("\n💾 Saving file metadata to database...")
+        for metadata in files_metadata:
+            from datetime import datetime
+
+            # Convert ISO format strings to datetime objects
+            created = datetime.fromisoformat(metadata["created"])
+            modified = datetime.fromisoformat(metadata["modified"])
+
+            # Create FileMetadata object
+            from llm_organizer.models.file_metadata import FileMetadata
+
+            file_metadata = FileMetadata(
+                path=Path(metadata["path"]),
+                name=metadata["name"],
+                extension=metadata["extension"],
+                mime_type=metadata["mime_type"],
+                size=metadata["size"],
+                created=created,
+                modified=modified,
+                content=metadata["content"],
+                category=metadata.get("category", "Other"),
+            )
+
+            # Save to database
+            metadata_store.save_metadata(file_metadata)
+
         # Analyze files
         console.print("\n🔍 Analyzing files with AI...")
         analysis_results = indexer.analyze_files(
             scanner.get_files() if hasattr(scanner, "get_files") else files_metadata
         )
 
-        # Generate organization plan
+        # Save analysis results to database
+        console.print("\n💾 Saving analysis results to database...")
+        for result in analysis_results:
+            from llm_organizer.models.file_metadata import FileAnalysis
+
+            file_analysis = FileAnalysis(
+                path=Path(result["path"]),
+                tags=result["tags"],
+                suggested_folder=result["suggested_folder"],
+                description=result["description"],
+                category=result.get("category", "Other"),
+            )
+
+            # Save to database
+            metadata_store.save_analysis(file_analysis)
+
+        # Generate organization plan using all the collected data
         console.print("\n📋 Generating organization plan...")
+        # Always use intelligent schema with the new workflow
         organization_plan = organizer.generate_plan(
-            analysis_results, use_intelligent_schema=intelligent
+            analysis_results, use_intelligent_schema=True
         )
 
         # Display preview
@@ -219,6 +276,9 @@ def organize_command(
                 f"\n✅ Organization complete! Master TOC saved to: {toc_path}",
                 style="green",
             )
+
+        # Close database connection
+        metadata_store.close()
 
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")

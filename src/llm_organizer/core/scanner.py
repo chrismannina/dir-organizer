@@ -35,7 +35,7 @@ except ImportError:
 class DirectoryScanner:
     """Handles directory scanning and metadata collection."""
 
-    def __init__(self, exclude_patterns: List[str] = None):
+    def __init__(self, exclude_patterns: List[str] = None, config=None):
         self.text_extensions = {
             ".txt",
             ".md",
@@ -49,6 +49,48 @@ class DirectoryScanner:
         }
         self.supported_binary = {}
         self.files_metadata = []  # Store files metadata for later retrieval
+
+        # Load file categories from config if provided
+        self.file_categories = {}
+        if (
+            config
+            and hasattr(config, "scanner")
+            and hasattr(config.scanner, "file_categories")
+        ):
+            self.file_categories = config.scanner.file_categories
+        else:
+            # Default categories if config not provided
+            self.file_categories = {
+                "Documents": [".txt", ".md", ".doc", ".docx", ".pdf", ".rtf", ".odt"],
+                "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp"],
+                "Videos": [".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm"],
+                "Audio": [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"],
+                "Code": [
+                    ".py",
+                    ".js",
+                    ".html",
+                    ".css",
+                    ".java",
+                    ".c",
+                    ".cpp",
+                    ".go",
+                    ".rs",
+                    ".php",
+                ],
+                "Data": [
+                    ".json",
+                    ".csv",
+                    ".xml",
+                    ".yaml",
+                    ".yml",
+                    ".sql",
+                    ".xlsx",
+                    ".xls",
+                ],
+                "Archives": [".zip", ".rar", ".7z", ".tar", ".gz"],
+                "Executables": [".exe", ".app", ".bat", ".sh", ".msi"],
+                "Other": [],
+            }
 
         # Only add supported binary handlers if libraries are available
         if PDF_AVAILABLE:
@@ -152,6 +194,21 @@ class DirectoryScanner:
 
         return self.files_metadata
 
+    def _get_file_category(self, extension: str) -> str:
+        """
+        Determine the category of a file based on its extension.
+
+        Args:
+            extension (str): File extension including the dot (e.g., '.txt')
+
+        Returns:
+            str: Category name from configuration
+        """
+        for category, extensions in self.file_categories.items():
+            if extension.lower() in extensions:
+                return category
+        return "Other"
+
     def _get_file_metadata(self, file_path: Path) -> Optional[Dict]:
         """
         Get metadata for a single file.
@@ -165,16 +222,21 @@ class DirectoryScanner:
         try:
             stats = file_path.stat()
             mime_type = self._get_mime_type(file_path)
+            extension = file_path.suffix.lower()
+
+            # Determine file category
+            category = self._get_file_category(extension)
 
             metadata = {
                 "path": str(file_path),
                 "name": file_path.name,
-                "extension": file_path.suffix.lower(),
+                "extension": extension,
                 "size": stats.st_size,
                 "created": datetime.fromtimestamp(stats.st_ctime).isoformat(),
                 "modified": datetime.fromtimestamp(stats.st_mtime).isoformat(),
                 "mime_type": mime_type,
                 "content": None,
+                "category": category,
             }
 
             # Extract text content if possible

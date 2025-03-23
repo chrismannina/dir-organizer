@@ -40,15 +40,16 @@ class FileOrganizer:
                     "filename": Path(result["path"]).name,
                     "tags": result["tags"],
                     "description": result["description"],
+                    "category": result.get("category", "Other"),
                     "current_path": str(
                         Path(result["path"]).relative_to(self.base_dir)
                     ),
                 }
             )
 
-        # Prepare prompt for the LLM
+        # Prepare prompt for the LLM - expanded to include category information
         prompt = f"""
-You are an expert file organizer. Given the following list of files with their tags and descriptions,
+You are an expert file organizer. Given the following list of files with their tags, descriptions, and categories,
 create a logical folder structure that groups related files together.
 
 Consider the following guidelines:
@@ -57,6 +58,9 @@ Consider the following guidelines:
 3. Use a consistent naming convention for folders
 4. Consider hierarchical relationships between files
 5. Maximum folder depth should be 3 levels (including the base directory)
+6. Group files by interest areas and themes, not just file types
+7. Create general purpose folders that can accommodate multiple related files
+8. Use the category field as a starting point, but feel free to create more appropriate organization
 
 Here are the files to organize:
 {json.dumps(files_summary, indent=2)}
@@ -84,25 +88,29 @@ Return your answer as a JSON object with the following structure:
 }}
 """
 
-        # TODO: Call LLM API with prompt
-        # This would be the code to call the OpenAI API
-        from openai import OpenAI
-
         try:
-            # Get the API key from wherever it's stored in your app
+            # Import here to avoid circular imports
+            from openai import OpenAI
+
             from llm_organizer.config.defaults import load_config
 
             config = load_config()
             api_key = config.llm.api_key
-            model_name = config.llm.model_name
+
+            # Use GPT-4o specifically for organization planning
+            organization_model = config.llm.organization_model
+
+            console.print(
+                f"\n🧠 Using {organization_model} for intelligent organization planning..."
+            )
 
             client = OpenAI(api_key=api_key)
             response = client.chat.completions.create(
-                model=model_name,
+                model=organization_model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert file organizer that outputs valid JSON.",
+                        "content": "You are an expert file organizer that outputs valid JSON. Your goal is to create logical folder structures based on file content, tags, and categories.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -125,12 +133,22 @@ Return your answer as a JSON object with the following structure:
                 # Assign files based on tags and folder names
                 self._assign_files_to_folders(schema, files_summary)
 
+            # Save the schema for future reference
+            self._save_schema(schema)
+
             return schema
 
         except Exception as e:
             console.print(f"Error generating intelligent schema: {str(e)}", style="red")
             # Fallback to a basic schema if the API call fails
             return self._generate_fallback_schema(analysis_results)
+
+    def _save_schema(self, schema: Dict) -> None:
+        """Save the organization schema to a file for future reference."""
+        schema_path = self.base_dir / "organization_schema.json"
+        with open(schema_path, "w", encoding="utf-8") as f:
+            json.dump(schema, f, indent=2, ensure_ascii=False)
+        console.print(f"\n💾 Organization schema saved to: {schema_path}", style="blue")
 
     def _generate_fallback_schema(self, analysis_results: List[Dict]) -> Dict:
         """Generate a basic schema when the API call fails."""
