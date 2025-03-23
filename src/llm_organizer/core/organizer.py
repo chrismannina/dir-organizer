@@ -69,6 +69,9 @@ Consider the following guidelines:
 6. Group files by interest areas and themes, not just file types
 7. Create general purpose folders that can accommodate multiple related files
 8. Use the category field as a starting point, but feel free to create more appropriate organization
+9. Pay special attention to media files like images, videos, and audio - try to keep them organized by content rather than just file type
+10. Avoid using "Other" as a folder name unless absolutely necessary - try to find meaningful groupings
+11. For images, consider grouping them by theme, subject matter, or purpose rather than putting all in a generic "Images" folder
 
 Here are the files to organize:
 {json.dumps(files_summary, indent=2)}
@@ -218,12 +221,46 @@ The formatting will be handled automatically by the system based on user prefere
 
         extract_paths(schema["folder_hierarchy"])
 
+        from llm_organizer.utils import format_naming_scheme
+
+        # Format the "Other" folder name according to the naming scheme
+        other_folder_name = format_naming_scheme("Other", self.folder_naming_scheme)
+
         # Add "Other" as a fallback folder if it doesn't exist
-        if "Other" not in available_folders:
+        if (
+            other_folder_name not in available_folders
+            and "Other" not in available_folders
+        ):
             schema["folder_hierarchy"].append(
-                {"name": "Other", "path": "Other", "parent": None, "children": []}
+                {
+                    "name": other_folder_name,
+                    "path": other_folder_name,
+                    "parent": None,
+                    "children": [],
+                }
             )
-            available_folders.append("Other")
+            available_folders.append(other_folder_name)
+
+        # Add "Images" folder if it doesn't exist
+        images_folder_name = format_naming_scheme("Images", self.folder_naming_scheme)
+        if (
+            images_folder_name not in available_folders
+            and "Images" not in available_folders
+        ):
+            image_files_exist = any(
+                file_info.get("category", "").lower() == "images"
+                for file_info in files_summary
+            )
+            if image_files_exist:
+                schema["folder_hierarchy"].append(
+                    {
+                        "name": images_folder_name,
+                        "path": images_folder_name,
+                        "parent": None,
+                        "children": [],
+                    }
+                )
+                available_folders.append(images_folder_name)
 
         # For each file, find the most appropriate folder
         for file_info in files_summary:
@@ -233,10 +270,37 @@ The formatting will be handled automatically by the system based on user prefere
             # Convert tags to lowercase for comparison
             file_tags = [tag.lower() for tag in file_info["tags"]]
             filename_lower = file_info["filename"].lower()
+            category = file_info.get("category", "").lower()
+
+            # Special case for images
+            image_extensions = [
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".gif",
+                ".bmp",
+                ".svg",
+                ".webp",
+            ]
+            is_image = any(filename_lower.endswith(ext) for ext in image_extensions)
+
+            if (
+                is_image
+                and category == "images"
+                and images_folder_name in available_folders
+            ):
+                schema["file_mappings"][file_info["current_path"]] = images_folder_name
+                continue
 
             for folder_path in available_folders:
                 folder_parts = folder_path.lower().split("/")
                 score = 0
+
+                # Special case for matching category to folder name
+                if category and any(
+                    part.lower() == category.lower() for part in folder_parts
+                ):
+                    score += 5  # Higher score for direct category match
 
                 # Check if any folder part matches file tags
                 for part in folder_parts:
@@ -246,7 +310,10 @@ The formatting will be handled automatically by the system based on user prefere
                             score += 2
 
                     # Score based on folder name appearing in description
-                    if part in file_info["description"].lower():
+                    if (
+                        "description" in file_info
+                        and part in file_info["description"].lower()
+                    ):
                         score += 1
 
                     # Score based on folder name appearing in filename
@@ -257,11 +324,11 @@ The formatting will be handled automatically by the system based on user prefere
                     best_score = score
                     best_folder = folder_path
 
-            # Assign file to the best matching folder, or "Other" if no match
+            # Assign file to the best matching folder, or formatted "Other" if no match
             if best_score > 0:
                 schema["file_mappings"][file_info["current_path"]] = best_folder
             else:
-                schema["file_mappings"][file_info["current_path"]] = "Other"
+                schema["file_mappings"][file_info["current_path"]] = other_folder_name
 
     def _process_intelligent_schema(
         self, schema: Dict, analysis_results: List[Dict]
@@ -319,20 +386,40 @@ The formatting will be handled automatically by the system based on user prefere
             schema["folder_hierarchy"], plan["folders"], use_formatted=True
         )
 
+        # Format the "Other" folder name according to the naming scheme
+        other_folder_formatted = format_naming_scheme(
+            "Other", self.folder_naming_scheme
+        )
+
         # Ensure the "Other" folder exists if any files will be mapped there
         other_folder_needed = False
         for result in analysis_results:
             original_path = Path(result["path"])
             rel_path = str(original_path.relative_to(self.base_dir))
 
-            # Check if any file will go to "Other"
-            if schema["file_mappings"].get(rel_path, "Other") == "Other":
+            # Check if any file will go to "Other" or "other"
+            dest_folder = schema["file_mappings"].get(rel_path, other_folder_formatted)
+            if (
+                dest_folder.lower() == "other"
+                or dest_folder.lower() == other_folder_formatted.lower()
+            ):
                 other_folder_needed = True
+                # Update the mapping to use the properly formatted name
+                schema["file_mappings"][rel_path] = other_folder_formatted
                 break
 
         if other_folder_needed:
-            other_folder = self.base_dir / "Other"
+            other_folder = self.base_dir / other_folder_formatted
             plan["folders"].add(str(other_folder))
+
+        # Special handling for image files
+        image_folder_formatted = format_naming_scheme(
+            "Images", self.folder_naming_scheme
+        )
+        image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp"]
+
+        # Create an images folder if needed
+        images_folder_needed = False
 
         # Map each file to its destination
         for result in analysis_results:
@@ -340,7 +427,17 @@ The formatting will be handled automatically by the system based on user prefere
             rel_path = str(original_path.relative_to(self.base_dir))
 
             # Get destination folder from schema mapping or use default
-            dest_folder = schema["file_mappings"].get(rel_path, "Other")
+            dest_folder = schema["file_mappings"].get(rel_path, other_folder_formatted)
+
+            # Apply special handling for image files
+            if original_path.suffix.lower() in image_extensions:
+                # Check category from analysis results
+                if (
+                    result.get("category", "").lower() == "images"
+                    and dest_folder.lower() == other_folder_formatted.lower()
+                ):
+                    dest_folder = image_folder_formatted
+                    images_folder_needed = True
 
             # Create full paths
             new_folder = self.base_dir / dest_folder
@@ -365,6 +462,11 @@ The formatting will be handled automatically by the system based on user prefere
                     "tags": result["tags"],
                 }
             )
+
+        # Add images folder if needed
+        if images_folder_needed:
+            images_folder = self.base_dir / image_folder_formatted
+            plan["folders"].add(str(images_folder))
 
         return plan
 
@@ -774,7 +876,7 @@ The formatting will be handled automatically by the system based on user prefere
 
         # Default name if empty
         if not name:
-            name = "other"
+            name = format_naming_scheme("other", self.folder_naming_scheme)
 
         return name
 
@@ -791,3 +893,76 @@ The formatting will be handled automatically by the system based on user prefere
             app_data_dir.mkdir(exist_ok=True)
 
         return app_data_dir
+
+    def migrate_organizer_files(self) -> Dict:
+        """
+        Migrate existing organizer-generated files to the app data folder.
+
+        Returns:
+            Dict: A summary of the migration process
+        """
+        if not self.base_dir:
+            console.print("Base directory not set. Cannot migrate files.", style="red")
+            return {"success": False, "message": "Base directory not set"}
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        app_data_dir = self._get_app_data_folder()
+
+        # File patterns to search for and migrate
+        patterns = [
+            "organization_plan_*.html",
+            "organization_schema_*.json",
+            "file_organization_toc_*.json",
+        ]
+
+        migration_summary = {
+            "success": True,
+            "message": "Migration completed successfully",
+            "migrated_files": [],
+            "errors": [],
+        }
+
+        # Search for files in base directory and migrate them
+        for pattern in patterns:
+            for file_path in self.base_dir.glob(pattern):
+                # Skip if the file is already in the app data folder
+                if app_data_dir in file_path.parents:
+                    continue
+
+                try:
+                    # Create new path in app data folder
+                    new_name = f"{file_path.stem}_{timestamp}{file_path.suffix}"
+                    new_path = app_data_dir / new_name
+
+                    # Move the file
+                    shutil.move(str(file_path), str(new_path))
+                    migration_summary["migrated_files"].append(
+                        {"original": str(file_path), "new": str(new_path)}
+                    )
+                    console.print(
+                        f"Migrated: {file_path.name} -> {new_path.name}", style="green"
+                    )
+                except Exception as e:
+                    migration_summary["errors"].append(
+                        {"file": str(file_path), "error": str(e)}
+                    )
+                    console.print(
+                        f"Error migrating {file_path.name}: {str(e)}", style="red"
+                    )
+
+        # Update summary message
+        if (
+            len(migration_summary["migrated_files"]) == 0
+            and len(migration_summary["errors"]) == 0
+        ):
+            migration_summary["message"] = "No files found to migrate"
+        elif len(migration_summary["errors"]) > 0:
+            migration_summary["success"] = False
+            migration_summary["message"] = (
+                f"Migration completed with {len(migration_summary['errors'])} errors"
+            )
+
+        console.print(
+            f"\n📁 Migration summary: {migration_summary['message']}", style="blue"
+        )
+        return migration_summary

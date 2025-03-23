@@ -127,6 +127,11 @@ def organize_command(
             }
         )
         organizer = FileOrganizer(config=config)
+        organizer.base_dir = Path(directory)
+
+        # Migrate any existing organizer files to the hidden folder
+        organizer.migrate_organizer_files()
+
         logger = OperationLogger()
 
         # Initialize SQLite database for storing metadata
@@ -396,4 +401,41 @@ def test_api_command(config: Optional[AppConfig] = None) -> None:
 
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")
+        raise
+
+
+def migrate_command(directory: str) -> None:
+    """
+    Migrate organizer-generated files to the hidden .llm_organizer folder.
+
+    Args:
+        directory: Path to directory to migrate files from
+    """
+    try:
+        console.print(f"\n📂 Migrating organizer files in directory: {directory}")
+
+        # Create FileOrganizer and set base directory
+        organizer = FileOrganizer()
+        organizer.base_dir = Path(directory)
+
+        # Perform migration
+        migration_result = organizer.migrate_organizer_files()
+
+        if migration_result["success"]:
+            files_count = len(migration_result["migrated_files"])
+            if files_count > 0:
+                console.print(
+                    f"\n✅ Successfully migrated {files_count} files to .llm_organizer folder!",
+                    style="green",
+                )
+            else:
+                console.print("\n📝 No organizer files found to migrate.", style="blue")
+        else:
+            console.print(
+                f"\n⚠️ Migration completed with issues: {migration_result['message']}",
+                style="yellow",
+            )
+
+    except Exception as e:
+        console.print(f"\n❌ Error during migration: {str(e)}", style="red")
         raise

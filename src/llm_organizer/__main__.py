@@ -6,7 +6,12 @@ import sys
 import click
 from rich.console import Console
 
-from llm_organizer.cli.commands import organize_command, test_api_command, undo_command
+from llm_organizer.cli.commands import (
+    migrate_command,
+    organize_command,
+    test_api_command,
+    undo_command,
+)
 
 console = Console()
 
@@ -82,6 +87,13 @@ def undo():
 def test_api():
     """Test the connection to the OpenAI API."""
     test_api_command()
+
+
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True))
+def migrate(directory):
+    """Migrate organizer files in DIRECTORY to hidden folder."""
+    migrate_command(directory)
 
 
 def main():

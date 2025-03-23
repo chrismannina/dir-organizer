@@ -31,6 +31,14 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
+# Try to import PIL for image metadata
+try:
+    from PIL import ExifTags, Image
+
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
 
 class DirectoryScanner:
     """Handles directory scanning and metadata collection."""
@@ -49,6 +57,18 @@ class DirectoryScanner:
         }
         self.supported_binary = {}
         self.files_metadata = []  # Store files metadata for later retrieval
+
+        # Image extensions
+        self.image_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".bmp",
+            ".webp",
+            ".tiff",
+            ".tif",
+        }
 
         # Load file categories from config if provided
         self.file_categories = {}
@@ -237,6 +257,7 @@ class DirectoryScanner:
                 "mime_type": mime_type,
                 "content": None,
                 "category": category,
+                "additional_metadata": {},
             }
 
             # Extract text content if possible
@@ -250,6 +271,15 @@ class DirectoryScanner:
             elif metadata["extension"] in self.supported_binary:
                 extractor = self.supported_binary[metadata["extension"]]
                 metadata["content"] = extractor(file_path)
+
+            # Extract image metadata if it's an image file
+            if extension in self.image_extensions and PIL_AVAILABLE:
+                image_metadata = self._extract_image_metadata(file_path)
+                if image_metadata:
+                    metadata["additional_metadata"] = image_metadata
+                    # If we have a description from EXIF data, use it as content
+                    if "ImageDescription" in image_metadata:
+                        metadata["content"] = image_metadata["ImageDescription"]
 
             return metadata
 
@@ -308,6 +338,58 @@ class DirectoryScanner:
         except Exception as e:
             print(f"Error extracting text from {file_path}: {e}")
             return None
+
+    def _extract_image_metadata(self, file_path: Path) -> Dict:
+        """
+        Extract EXIF metadata from image files.
+
+        Args:
+            file_path (Path): Path to the image file
+
+        Returns:
+            Dict: Dictionary of EXIF metadata
+        """
+        if not PIL_AVAILABLE:
+            return {}
+
+        try:
+            image = Image.open(file_path)
+            exif_data = {}
+
+            # Check if image has EXIF data
+            if hasattr(image, "_getexif") and image._getexif():
+                exif = image._getexif()
+                # Map EXIF tags to readable names
+                for tag_id, value in exif.items():
+                    tag = ExifTags.TAGS.get(tag_id, tag_id)
+
+                    # Process certain tags specially
+                    if tag == "GPSInfo":
+                        gps_info = {}
+                        for gps_tag_id, gps_value in value.items():
+                            gps_tag = ExifTags.GPSTAGS.get(gps_tag_id, gps_tag_id)
+                            gps_info[gps_tag] = gps_value
+                        exif_data[tag] = gps_info
+                    else:
+                        # Convert bytes to string if needed
+                        if isinstance(value, bytes):
+                            try:
+                                value = value.decode("utf-8")
+                            except UnicodeDecodeError:
+                                value = str(value)
+                        exif_data[tag] = value
+
+            # Add basic image information
+            exif_data["ImageWidth"] = image.width
+            exif_data["ImageHeight"] = image.height
+            exif_data["ImageFormat"] = image.format
+            exif_data["ImageMode"] = image.mode
+
+            return exif_data
+
+        except Exception as e:
+            print(f"Error extracting image metadata from {file_path}: {e}")
+            return {}
 
     def get_files(self) -> List[Dict]:
         """

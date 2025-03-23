@@ -9,6 +9,9 @@ An AI-powered tool that organizes your directories using large language models.
 - **HTML Reports**: Generate beautiful reports of proposed organization
 - **Undo Functionality**: Easily revert any changes
 - **API Testing**: Built-in tools to verify API connectivity
+- **Hidden App Folder**: Stores all generated files in a hidden `.llm_organizer` folder
+- **Smart Image Handling**: Extracts and uses EXIF metadata from images for better organization
+- **File Migration**: Command to migrate organizer-generated files to the hidden folder
 
 ## Installation
 
@@ -58,6 +61,9 @@ llm-organizer undo
 
 # Test API connection
 llm-organizer test-api
+
+# Migrate organizer files to the hidden .llm_organizer folder
+llm-organizer migrate /path/to/directory
 ```
 
 ### Advanced Options

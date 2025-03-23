@@ -39,7 +39,13 @@ scanner:
 # Organizer Configuration
 organizer:
   # Naming scheme for folders (camelCase, snake_case, PascalCase, Title Case)
-  naming_scheme: "Title Case"
+  naming_scheme: "snake_case"
+
+  # Naming scheme for tags
+  tags_naming_scheme: "snake_case"
+
+  # Naming scheme for categories
+  categories_naming_scheme: "pascal_case"
 
   # Maximum folder depth for organization
   max_folder_depth: 3
@@ -55,6 +61,16 @@ organizer:
     - "Makefile"
     - "CMakeLists.txt"
 
+  # Whether to use cached analysis from database when available
+  use_cached_analysis: true
+
 # Application Configuration
+# Path where application data will be stored (database, logs, etc.)
 data_dir: "~/.llm-organizer"
+
+# Each organized directory will also have a .llm_organizer hidden folder
+# where HTML reports, organization schemas, and TOCs will be stored
+# All generated files are timestamped for historical reference
+
+# Default behavior for preview mode
 preview_default: true

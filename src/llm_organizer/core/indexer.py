@@ -206,6 +206,55 @@ class FileIndexer:
             f"Modified: {metadata['modified']}",
         ]
 
+        # Add category information
+        parts.append(f"Category: {metadata.get('category', 'Other')}")
+
+        # Add any additional metadata, especially for images
+        if "additional_metadata" in metadata and metadata["additional_metadata"]:
+            parts.append("\nAdditional Metadata:")
+            image_metadata = metadata["additional_metadata"]
+
+            # Add image dimensions if available
+            if "ImageWidth" in image_metadata and "ImageHeight" in image_metadata:
+                parts.append(
+                    f"Image Dimensions: {image_metadata['ImageWidth']}x{image_metadata['ImageHeight']} pixels"
+                )
+
+            # Add image format
+            if "ImageFormat" in image_metadata:
+                parts.append(f"Image Format: {image_metadata['ImageFormat']}")
+
+            # Add EXIF data that might be useful for organization
+            if "DateTimeOriginal" in image_metadata:
+                parts.append(f"Date Taken: {image_metadata['DateTimeOriginal']}")
+
+            if "Make" in image_metadata and "Model" in image_metadata:
+                parts.append(
+                    f"Camera: {image_metadata['Make']} {image_metadata['Model']}"
+                )
+
+            if "ImageDescription" in image_metadata:
+                parts.append(f"Image Description: {image_metadata['ImageDescription']}")
+
+            # Add location data if available
+            if "GPSInfo" in image_metadata:
+                parts.append("GPS Data: Available (location information)")
+
+            # Include any other relevant metadata
+            for key, value in image_metadata.items():
+                if key not in [
+                    "ImageWidth",
+                    "ImageHeight",
+                    "ImageFormat",
+                    "DateTimeOriginal",
+                    "Make",
+                    "Model",
+                    "ImageDescription",
+                    "GPSInfo",
+                    "ImageMode",
+                ] and isinstance(value, (str, int, float)):
+                    parts.append(f"{key}: {value}")
+
         if metadata["content"]:
             parts.append("\nContent preview:")
             # Limit content to avoid token limits
