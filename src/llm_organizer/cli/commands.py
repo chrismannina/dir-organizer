@@ -2,6 +2,7 @@
 
 import os
 import webbrowser
+from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -57,19 +58,25 @@ def organize_command(
     exclude: Optional[List[str]] = None,
     exclude_file: Optional[str] = None,
     open_report: bool = False,
+    intelligent: bool = True,
     config: Optional[AppConfig] = None,
 ) -> None:
     """
     Organize files in a directory using AI.
 
     Args:
-        directory: Directory to organize
+        directory: Path to directory to organize
         recursive: Whether to scan recursively
-        preview: Whether to preview changes before applying
+        preview: Whether to preview changes before executing
         exclude: List of patterns to exclude
         exclude_file: Path to YAML file with exclusion patterns
         open_report: Whether to open the HTML report automatically
-        config: Configuration objec
+        intelligent: Whether to use intelligent schema for organization
+        config: Configuration object
+
+    The intelligent option uses a holistic approach to analyze all files together,
+    creating a cohesive organization plan with categories and subcategories based on
+    file relationships, instead of organizing each file individually.
     """
     try:
         if config is None:
@@ -89,7 +96,10 @@ def organize_command(
         api_key = config.llm.api_key
         masked_key = f"{api_key[:10]}...{api_key[-4:]}"
         console.print(f"\n🔑 Using OpenAI API key: {masked_key}", style="blue")
-        console.print(f"Using model: {config.llm.model_name}", style="blue")
+        console.print(
+            f"Using models: {config.llm.model_name} (analysis) / {config.llm.organization_model} (organization)",
+            style="blue",
+        )
 
         # Combine exclusions from command line and file
         exclusions = list(exclude) if exclude else []
@@ -106,12 +116,39 @@ def organize_command(
             exclusions.extend(config.scanner.exclude_patterns)
 
         # Initialize components
-        scanner = DirectoryScanner(exclude_patterns=exclusions)
+        scanner = DirectoryScanner(exclude_patterns=exclusions, config=config)
         indexer = FileIndexer(
-            {"openai_api_key": config.llm.api_key, "model_name": config.llm.model_name}
+            {
+                "openai_api_key": config.llm.api_key,
+                "model_name": config.llm.model_name,
+                "tags_naming_scheme": config.organizer.tags_naming_scheme,
+                "categories_naming_scheme": config.organizer.categories_naming_scheme,
+                "naming_scheme": config.organizer.naming_scheme,
+            }
         )
-        organizer = FileOrganizer()
+        organizer = FileOrganizer(config=config)
+        organizer.base_dir = Path(directory)
+
+        # Migrate any existing organizer files to the hidden folder
+        organizer.migrate_organizer_files()
+
         logger = OperationLogger()
+
+        # Initialize SQLite database for storing metadata
+        from llm_organizer.models.file_metadata import MetadataStore
+
+        db_path = os.path.join(os.path.expanduser(config.data_dir), "file_metadata.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        metadata_store = MetadataStore(db_path)
+
+        console.print(f"\n💾 Using metadata database: {db_path}", style="blue")
+
+        # Check if we should use cached analysis
+        use_cached = config.organizer.use_cached_analysis
+        if use_cached:
+            console.print("🔄 Using cached analysis when available", style="blue")
+        else:
+            console.print("🔄 Reanalyzing all files (cache disabled)", style="yellow")
 
         # Display exclusion patterns if any
         if exclusions:
@@ -158,27 +195,65 @@ def organize_command(
             )
             return
 
-        # Index and analyze files
-        console.print("\n🔍 Analyzing files with LLM...")
-        analysis_results = indexer.analyze_files(files_metadata)
+        # Save file metadata to database
+        console.print("\n💾 Saving file metadata to database...")
+        for metadata in files_metadata:
+            from datetime import datetime
 
-        # Check if we have meaningful results
-        valid_results = [
-            result for result in analysis_results if result["tags"] != ["unclassified"]
-        ]
-        if not valid_results:
-            console.print(
-                "❌ Could not properly analyze any files. Please check your API key and permissions.",
-                style="red",
+            # Convert ISO format strings to datetime objects
+            created = datetime.fromisoformat(metadata["created"])
+            modified = datetime.fromisoformat(metadata["modified"])
+
+            # Create FileMetadata object
+            from llm_organizer.models.file_metadata import FileMetadata
+
+            file_metadata = FileMetadata(
+                path=Path(metadata["path"]),
+                name=metadata["name"],
+                extension=metadata["extension"],
+                mime_type=metadata["mime_type"],
+                size=metadata["size"],
+                created=created,
+                modified=modified,
+                content=metadata["content"],
+                category=metadata.get("category", "Other"),
             )
-            return
 
-        # Generate organization plan
+            # Save to database
+            metadata_store.save_metadata(file_metadata)
+
+        # Analyze files
+        console.print("\n🔍 Analyzing files with AI...")
+        analysis_results = indexer.analyze_files(
+            scanner.get_files() if hasattr(scanner, "get_files") else files_metadata,
+            metadata_store=metadata_store,
+            use_cached=use_cached,
+        )
+
+        # Save analysis results to database
+        console.print("\n💾 Saving analysis results to database...")
+        for result in analysis_results:
+            from llm_organizer.models.file_metadata import FileAnalysis
+
+            file_analysis = FileAnalysis(
+                path=Path(result["path"]),
+                tags=result["tags"],
+                suggested_folder=result["suggested_folder"],
+                description=result["description"],
+                category=result.get("category", "Other"),
+            )
+
+            # Save to database
+            metadata_store.save_analysis(file_analysis)
+
+        # Generate organization plan using all the collected data
         console.print("\n📋 Generating organization plan...")
-        organization_plan = organizer.generate_plan(analysis_results)
+        # Always use intelligent schema with the new workflow
+        organization_plan = organizer.generate_plan(
+            analysis_results, use_intelligent_schema=True
+        )
 
-        # Display plan
-        console.print("\n📝 Proposed Changes:", style="bold blue")
+        # Display preview
         report_path = organizer.display_plan(organization_plan)
 
         # Auto open the report in browser if requested
@@ -221,6 +296,9 @@ def organize_command(
                 f"\n✅ Organization complete! Master TOC saved to: {toc_path}",
                 style="green",
             )
+
+        # Close database connection
+        metadata_store.close()
 
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")
@@ -323,4 +401,41 @@ def test_api_command(config: Optional[AppConfig] = None) -> None:
 
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")
+        raise
+
+
+def migrate_command(directory: str) -> None:
+    """
+    Migrate organizer-generated files to the hidden .llm_organizer folder.
+
+    Args:
+        directory: Path to directory to migrate files from
+    """
+    try:
+        console.print(f"\n📂 Migrating organizer files in directory: {directory}")
+
+        # Create FileOrganizer and set base directory
+        organizer = FileOrganizer()
+        organizer.base_dir = Path(directory)
+
+        # Perform migration
+        migration_result = organizer.migrate_organizer_files()
+
+        if migration_result["success"]:
+            files_count = len(migration_result["migrated_files"])
+            if files_count > 0:
+                console.print(
+                    f"\n✅ Successfully migrated {files_count} files to .llm_organizer folder!",
+                    style="green",
+                )
+            else:
+                console.print("\n📝 No organizer files found to migrate.", style="blue")
+        else:
+            console.print(
+                f"\n⚠️ Migration completed with issues: {migration_result['message']}",
+                style="yellow",
+            )
+
+    except Exception as e:
+        console.print(f"\n❌ Error during migration: {str(e)}", style="red")
         raise

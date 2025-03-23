@@ -6,7 +6,12 @@ import sys
 import click
 from rich.console import Console
 
-from llm_organizer.cli.commands import organize_command, test_api_command, undo_command
+from llm_organizer.cli.commands import (
+    migrate_command,
+    organize_command,
+    test_api_command,
+    undo_command,
+)
 
 console = Console()
 
@@ -42,14 +47,33 @@ def cli():
     help="Automatically open the HTML report in browser",
 )
 @click.option(
+    "--intelligent/--no-intelligent",
+    default=False,
+    help="Use intelligent organization based on all files together",
+)
+@click.option(
     "--config", "-c", type=click.Path(exists=True), help="Path to configuration file"
 )
 def organize(
-    directory, recursive, preview, exclude, exclude_file, open_report, config=None
+    directory,
+    recursive,
+    preview,
+    exclude,
+    exclude_file,
+    open_report,
+    intelligent,
+    config=None,
 ):
     """Organize files in DIRECTORY using AI."""
     organize_command(
-        directory, recursive, preview, exclude, exclude_file, open_report, config
+        directory,
+        recursive,
+        preview,
+        exclude,
+        exclude_file,
+        open_report,
+        intelligent,
+        config,
     )
 
 
@@ -63,6 +87,13 @@ def undo():
 def test_api():
     """Test the connection to the OpenAI API."""
     test_api_command()
+
+
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True))
+def migrate(directory):
+    """Migrate organizer files in DIRECTORY to hidden folder."""
+    migrate_command(directory)
 
 
 def main():
