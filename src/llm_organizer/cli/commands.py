@@ -126,7 +126,7 @@ def organize_command(
                 "naming_scheme": config.organizer.naming_scheme,
             }
         )
-        organizer = FileOrganizer()
+        organizer = FileOrganizer(config=config)
         logger = OperationLogger()
 
         # Initialize SQLite database for storing metadata

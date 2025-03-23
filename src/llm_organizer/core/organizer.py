@@ -16,8 +16,16 @@ console = Console()
 class FileOrganizer:
     """Handles file organization and TOC generation."""
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.base_dir = None
+        self.config = config
+        self.folder_naming_scheme = "snake_case"
+        self.categories_naming_scheme = "pascal_case"
+
+        # Set naming schemes from config if provided
+        if config and hasattr(config, "organizer"):
+            self.folder_naming_scheme = config.organizer.naming_scheme
+            self.categories_naming_scheme = config.organizer.categories_naming_scheme
 
     def generate_intelligent_schema(self, analysis_results: List[Dict]) -> Dict:
         """
@@ -55,7 +63,7 @@ create a logical folder structure that groups related files together.
 Consider the following guidelines:
 1. Create main categories based on file types, topics, or project areas
 2. Create appropriate subcategories where relevant
-3. Use a consistent naming convention for folders
+3. Use descriptive, clear folder names (don't worry about formatting - just use spaces and readable names)
 4. Consider hierarchical relationships between files
 5. Maximum folder depth should be 3 levels (including the base directory)
 6. Group files by interest areas and themes, not just file types
@@ -69,23 +77,26 @@ Return your answer as a JSON object with the following structure:
 {{
   "folder_hierarchy": [
     {{
-      "name": "FolderName",
-      "path": "FolderName",
+      "name": "Folder Name",
+      "path": "Folder Name",
       "parent": null,
       "children": [
         {{
-          "name": "SubfolderName",
-          "path": "FolderName/SubfolderName",
-          "parent": "FolderName",
+          "name": "Subfolder Name",
+          "path": "Folder Name/Subfolder Name",
+          "parent": "Folder Name",
           "children": []
         }}
       ]
     }}
   ],
   "file_mappings": {{
-    "original/path/to/file.txt": "FolderName/SubfolderName"
+    "original/path/to/file.txt": "Folder Name/Subfolder Name"
   }}
 }}
+
+Note: Don't worry about the formatting style of folder names (like camelCase or snake_case) - just use clear, descriptive names.
+The formatting will be handled automatically by the system based on user preferences.
 """
 
         try:
@@ -264,8 +275,46 @@ Return your answer as a JSON object with the following structure:
         """
         plan = {"moves": [], "folders": set(), "toc_entries": []}
 
+        # Apply naming scheme to folder paths in schema
+        from llm_organizer.utils import format_naming_scheme
+
+        # Create a mapping of original paths to formatted paths
+        formatted_paths = {}
+
+        # Format folder paths in hierarchy
+        def format_paths(folders):
+            for folder in folders:
+                # Format each part of the path
+                path_parts = folder["path"].split("/")
+                formatted_parts = [
+                    format_naming_scheme(part, self.folder_naming_scheme)
+                    for part in path_parts
+                ]
+                formatted_path = "/".join(formatted_parts)
+
+                # Update the folder object
+                formatted_paths[folder["path"]] = formatted_path
+                folder["formatted_path"] = formatted_path
+
+                # Process children recursively
+                if folder["children"]:
+                    format_paths(folder["children"])
+
+        # Format all paths in the hierarchy
+        format_paths(schema["folder_hierarchy"])
+
+        # Update file mappings to use formatted paths
+        formatted_mappings = {}
+        for file_path, folder_path in schema["file_mappings"].items():
+            formatted_folder = formatted_paths.get(folder_path, folder_path)
+            formatted_mappings[file_path] = formatted_folder
+
+        schema["file_mappings"] = formatted_mappings
+
         # Create all folders from the hierarchy
-        self._process_folder_hierarchy(schema["folder_hierarchy"], plan["folders"])
+        self._process_folder_hierarchy(
+            schema["folder_hierarchy"], plan["folders"], use_formatted=True
+        )
 
         # Ensure the "Other" folder exists if any files will be mapped there
         other_folder_needed = False
@@ -316,22 +365,31 @@ Return your answer as a JSON object with the following structure:
 
         return plan
 
-    def _process_folder_hierarchy(self, hierarchy: List[Dict], folder_set: set) -> None:
+    def _process_folder_hierarchy(
+        self, hierarchy: List[Dict], folder_set: set, use_formatted: bool = False
+    ) -> None:
         """
         Process the folder hierarchy and add all paths to the folder set.
 
         Args:
             hierarchy (List[Dict]): List of folder hierarchy nodes
             folder_set (set): Set to populate with folder paths
+            use_formatted (bool): Whether to use formatted paths from the schema
         """
         for folder in hierarchy:
             # Add this folder to the set
-            folder_path = self.base_dir / folder["path"]
+            if use_formatted and "formatted_path" in folder:
+                folder_path = self.base_dir / folder["formatted_path"]
+            else:
+                folder_path = self.base_dir / folder["path"]
+
             folder_set.add(str(folder_path))
 
             # Process children recursively
             if folder["children"]:
-                self._process_folder_hierarchy(folder["children"], folder_set)
+                self._process_folder_hierarchy(
+                    folder["children"], folder_set, use_formatted
+                )
 
     def generate_plan(
         self, analysis_results: List[Dict], use_intelligent_schema: bool = False
@@ -694,6 +752,12 @@ Return your answer as a JSON object with the following structure:
 
     def _sanitize_folder_name(self, name: str) -> str:
         """Sanitize folder name for filesystem compatibility."""
+        # Format the name according to the naming scheme
+        from llm_organizer.utils import format_naming_scheme
+
+        # First apply the naming scheme formatting
+        name = format_naming_scheme(name, self.folder_naming_scheme)
+
         # Replace invalid characters with underscores
         invalid_chars = '<>:"/\\|?*'
         for char in invalid_chars:
