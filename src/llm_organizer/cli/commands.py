@@ -57,19 +57,25 @@ def organize_command(
     exclude: Optional[List[str]] = None,
     exclude_file: Optional[str] = None,
     open_report: bool = False,
+    intelligent: bool = False,
     config: Optional[AppConfig] = None,
 ) -> None:
     """
     Organize files in a directory using AI.
 
     Args:
-        directory: Directory to organize
+        directory: Path to directory to organize
         recursive: Whether to scan recursively
-        preview: Whether to preview changes before applying
+        preview: Whether to preview changes before executing
         exclude: List of patterns to exclude
         exclude_file: Path to YAML file with exclusion patterns
         open_report: Whether to open the HTML report automatically
-        config: Configuration objec
+        intelligent: Whether to use intelligent schema for organization
+        config: Configuration object
+
+    The intelligent option uses a holistic approach to analyze all files together,
+    creating a cohesive organization plan with categories and subcategories based on
+    file relationships, instead of organizing each file individually.
     """
     try:
         if config is None:
@@ -158,27 +164,19 @@ def organize_command(
             )
             return
 
-        # Index and analyze files
-        console.print("\n🔍 Analyzing files with LLM...")
-        analysis_results = indexer.analyze_files(files_metadata)
-
-        # Check if we have meaningful results
-        valid_results = [
-            result for result in analysis_results if result["tags"] != ["unclassified"]
-        ]
-        if not valid_results:
-            console.print(
-                "❌ Could not properly analyze any files. Please check your API key and permissions.",
-                style="red",
-            )
-            return
+        # Analyze files
+        console.print("\n🔍 Analyzing files with AI...")
+        analysis_results = indexer.analyze_files(
+            scanner.get_files() if hasattr(scanner, "get_files") else files_metadata
+        )
 
         # Generate organization plan
         console.print("\n📋 Generating organization plan...")
-        organization_plan = organizer.generate_plan(analysis_results)
+        organization_plan = organizer.generate_plan(
+            analysis_results, use_intelligent_schema=intelligent
+        )
 
-        # Display plan
-        console.print("\n📝 Proposed Changes:", style="bold blue")
+        # Display preview
         report_path = organizer.display_plan(organization_plan)
 
         # Auto open the report in browser if requested

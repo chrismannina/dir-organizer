@@ -42,14 +42,33 @@ def cli():
     help="Automatically open the HTML report in browser",
 )
 @click.option(
+    "--intelligent/--no-intelligent",
+    default=False,
+    help="Use intelligent organization based on all files together",
+)
+@click.option(
     "--config", "-c", type=click.Path(exists=True), help="Path to configuration file"
 )
 def organize(
-    directory, recursive, preview, exclude, exclude_file, open_report, config=None
+    directory,
+    recursive,
+    preview,
+    exclude,
+    exclude_file,
+    open_report,
+    intelligent,
+    config=None,
 ):
     """Organize files in DIRECTORY using AI."""
     organize_command(
-        directory, recursive, preview, exclude, exclude_file, open_report, config
+        directory,
+        recursive,
+        preview,
+        exclude,
+        exclude_file,
+        open_report,
+        intelligent,
+        config,
     )
 
 

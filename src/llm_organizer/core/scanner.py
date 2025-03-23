@@ -48,6 +48,7 @@ class DirectoryScanner:
             ".yml",
         }
         self.supported_binary = {}
+        self.files_metadata = []  # Store files metadata for later retrieval
 
         # Only add supported binary handlers if libraries are available
         if PDF_AVAILABLE:
@@ -110,7 +111,7 @@ class DirectoryScanner:
             List[Dict]: List of file metadata dictionaries
         """
         directory_path = Path(directory)
-        files_metadata = []
+        self.files_metadata = []  # Reset file metadata
 
         # Get all files in directory
         if recursive:
@@ -144,12 +145,12 @@ class DirectoryScanner:
             try:
                 metadata = self._get_file_metadata(file_path)
                 if metadata:
-                    files_metadata.append(metadata)
+                    self.files_metadata.append(metadata)
             except Exception as e:
                 print(f"Error processing {file_path}: {str(e)}")
                 continue
 
-        return files_metadata
+        return self.files_metadata
 
     def _get_file_metadata(self, file_path: Path) -> Optional[Dict]:
         """
@@ -245,3 +246,12 @@ class DirectoryScanner:
         except Exception as e:
             print(f"Error extracting text from {file_path}: {e}")
             return None
+
+    def get_files(self) -> List[Dict]:
+        """
+        Get the file metadata collected during scanning.
+
+        Returns:
+            List[Dict]: List of file metadata dictionaries
+        """
+        return self.files_metadata

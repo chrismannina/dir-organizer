@@ -19,30 +19,261 @@ class FileOrganizer:
     def __init__(self):
         self.base_dir = None
 
-    def generate_plan(self, analysis_results: List[Dict]) -> Dict:
+    def generate_intelligent_schema(self, analysis_results: List[Dict]) -> Dict:
         """
-        Generate an organization plan based on analysis results.
+        Generate an intelligent organization schema based on all files together.
+
+        This method sends all file metadata, tags, and descriptions to the LLM
+        to create a cohesive organization plan with categories and subcategories.
 
         Args:
-            analysis_results (List[Dict]): List of file analysis results
+            analysis_results (List[Dict]): List of all file analysis results
 
         Returns:
-            Dict: Organization plan containing file moves and renames
+            Dict: Organization schema with folder hierarchy and file mappings
+        """
+        # Prepare a consolidated view of all files for the LLM
+        files_summary = []
+        for result in analysis_results:
+            files_summary.append(
+                {
+                    "filename": Path(result["path"]).name,
+                    "tags": result["tags"],
+                    "description": result["description"],
+                    "current_path": str(
+                        Path(result["path"]).relative_to(self.base_dir)
+                    ),
+                }
+            )
+
+        # Prepare prompt for the LLM
+        prompt = f"""
+You are an expert file organizer. Given the following list of files with their tags and descriptions,
+create a logical folder structure that groups related files together.
+
+Consider the following guidelines:
+1. Create main categories based on file types, topics, or project areas
+2. Create appropriate subcategories where relevant
+3. Use a consistent naming convention for folders
+4. Consider hierarchical relationships between files
+5. Maximum folder depth should be 3 levels (including the base directory)
+
+Here are the files to organize:
+{json.dumps(files_summary, indent=2)}
+
+Return your answer as a JSON object with the following structure:
+{{
+  "folder_hierarchy": [
+    {{
+      "name": "FolderName",
+      "path": "FolderName",
+      "parent": null,
+      "children": [
+        {{
+          "name": "SubfolderName",
+          "path": "FolderName/SubfolderName",
+          "parent": "FolderName",
+          "children": []
+        }}
+      ]
+    }}
+  ],
+  "file_mappings": {{
+    "original/path/to/file.txt": "FolderName/SubfolderName"
+  }}
+}}
+"""
+
+        # TODO: Call LLM API with prompt
+        # This would be the code to call the OpenAI API
+        from openai import OpenAI
+
+        try:
+            # Get the API key from wherever it's stored in your app
+            from llm_organizer.config.defaults import load_config
+
+            config = load_config()
+            api_key = config.llm.api_key
+            model_name = config.llm.model_name
+
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert file organizer that outputs valid JSON.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+
+            # Extract the JSON content from the response
+            response_content = response.choices[0].message.content
+            schema = json.loads(response_content)
+
+            # Ensure basic structure exists for safety
+            if "folder_hierarchy" not in schema:
+                schema["folder_hierarchy"] = []
+            if "file_mappings" not in schema:
+                schema["file_mappings"] = {}
+
+            # If no file mappings were created, add fallback logic to assign files to folders
+            if not schema["file_mappings"] and schema["folder_hierarchy"]:
+                # Assign files based on tags and folder names
+                self._assign_files_to_folders(schema, files_summary)
+
+            return schema
+
+        except Exception as e:
+            console.print(f"Error generating intelligent schema: {str(e)}", style="red")
+            # Fallback to a basic schema if the API call fails
+            return self._generate_fallback_schema(analysis_results)
+
+    def _generate_fallback_schema(self, analysis_results: List[Dict]) -> Dict:
+        """Generate a basic schema when the API call fails."""
+        # Create a dictionary to group files by their primary tag
+        tag_groups = {}
+        for result in analysis_results:
+            if result["tags"]:
+                primary_tag = result["tags"][
+                    0
+                ].title()  # Use the first tag as primary category
+                if primary_tag not in tag_groups:
+                    tag_groups[primary_tag] = []
+
+                rel_path = str(Path(result["path"]).relative_to(self.base_dir))
+                tag_groups[primary_tag].append(rel_path)
+
+        # Generate a folder hierarchy and file mappings
+        schema = {"folder_hierarchy": [], "file_mappings": {}}
+
+        # Add folders to hierarchy
+        for folder_name in tag_groups.keys():
+            schema["folder_hierarchy"].append(
+                {
+                    "name": folder_name,
+                    "path": folder_name,
+                    "parent": None,
+                    "children": [],
+                }
+            )
+
+            # Map files to this folder
+            for file_path in tag_groups[folder_name]:
+                schema["file_mappings"][file_path] = folder_name
+
+        return schema
+
+    def _assign_files_to_folders(self, schema: Dict, files_summary: List[Dict]) -> None:
+        """
+        Assign files to appropriate folders when LLM doesn't provide mappings.
+
+        Args:
+            schema: The folder schema with hierarchy but no mappings
+            files_summary: The list of file metadata
+        """
+        # Extract all available folder paths
+        available_folders = []
+
+        def extract_paths(folders):
+            for folder in folders:
+                available_folders.append(folder["path"])
+                if folder["children"]:
+                    extract_paths(folder["children"])
+
+        extract_paths(schema["folder_hierarchy"])
+
+        # Add "Other" as a fallback folder if it doesn't exist
+        if "Other" not in available_folders:
+            schema["folder_hierarchy"].append(
+                {"name": "Other", "path": "Other", "parent": None, "children": []}
+            )
+            available_folders.append("Other")
+
+        # For each file, find the most appropriate folder
+        for file_info in files_summary:
+            best_folder = None
+            best_score = -1
+
+            # Convert tags to lowercase for comparison
+            file_tags = [tag.lower() for tag in file_info["tags"]]
+            filename_lower = file_info["filename"].lower()
+
+            for folder_path in available_folders:
+                folder_parts = folder_path.lower().split("/")
+                score = 0
+
+                # Check if any folder part matches file tags
+                for part in folder_parts:
+                    # Score based on folder name matching tags
+                    for tag in file_tags:
+                        if part in tag or tag in part:
+                            score += 2
+
+                    # Score based on folder name appearing in description
+                    if part in file_info["description"].lower():
+                        score += 1
+
+                    # Score based on folder name appearing in filename
+                    if part in filename_lower:
+                        score += 3
+
+                if score > best_score:
+                    best_score = score
+                    best_folder = folder_path
+
+            # Assign file to the best matching folder, or "Other" if no match
+            if best_score > 0:
+                schema["file_mappings"][file_info["current_path"]] = best_folder
+            else:
+                schema["file_mappings"][file_info["current_path"]] = "Other"
+
+    def _process_intelligent_schema(
+        self, schema: Dict, analysis_results: List[Dict]
+    ) -> Dict:
+        """
+        Process the intelligent schema to generate a plan.
+
+        Args:
+            schema (Dict): The intelligent organization schema
+            analysis_results (List[Dict]): Original analysis results
+
+        Returns:
+            Dict: Organization plan with moves, folders, and TOC entries
         """
         plan = {"moves": [], "folders": set(), "toc_entries": []}
 
+        # Create all folders from the hierarchy
+        self._process_folder_hierarchy(schema["folder_hierarchy"], plan["folders"])
+
+        # Ensure the "Other" folder exists if any files will be mapped there
+        other_folder_needed = False
         for result in analysis_results:
             original_path = Path(result["path"])
+            rel_path = str(original_path.relative_to(self.base_dir))
 
-            if not self.base_dir:
-                self.base_dir = original_path.parent
+            # Check if any file will go to "Other"
+            if schema["file_mappings"].get(rel_path, "Other") == "Other":
+                other_folder_needed = True
+                break
 
-            # Create folder path
-            folder_name = self._sanitize_folder_name(result["suggested_folder"])
-            new_folder = self.base_dir / folder_name
-            plan["folders"].add(str(new_folder))
+        if other_folder_needed:
+            other_folder = self.base_dir / "Other"
+            plan["folders"].add(str(other_folder))
 
-            # Generate new file path
+        # Map each file to its destination
+        for result in analysis_results:
+            original_path = Path(result["path"])
+            rel_path = str(original_path.relative_to(self.base_dir))
+
+            # Get destination folder from schema mapping or use default
+            dest_folder = schema["file_mappings"].get(rel_path, "Other")
+
+            # Create full paths
+            new_folder = self.base_dir / dest_folder
             new_path = new_folder / original_path.name
 
             # Add move operation
@@ -64,6 +295,82 @@ class FileOrganizer:
                     "tags": result["tags"],
                 }
             )
+
+        return plan
+
+    def _process_folder_hierarchy(self, hierarchy: List[Dict], folder_set: set) -> None:
+        """
+        Process the folder hierarchy and add all paths to the folder set.
+
+        Args:
+            hierarchy (List[Dict]): List of folder hierarchy nodes
+            folder_set (set): Set to populate with folder paths
+        """
+        for folder in hierarchy:
+            # Add this folder to the set
+            folder_path = self.base_dir / folder["path"]
+            folder_set.add(str(folder_path))
+
+            # Process children recursively
+            if folder["children"]:
+                self._process_folder_hierarchy(folder["children"], folder_set)
+
+    def generate_plan(
+        self, analysis_results: List[Dict], use_intelligent_schema: bool = False
+    ) -> Dict:
+        """
+        Generate an organization plan based on analysis results.
+
+        Args:
+            analysis_results (List[Dict]): List of file analysis results
+            use_intelligent_schema (bool): Whether to use the intelligent schema approach
+
+        Returns:
+            Dict: Organization plan containing file moves and renames
+        """
+        # Ensure base_dir is set
+        if analysis_results and not self.base_dir:
+            self.base_dir = Path(analysis_results[0]["path"]).parent
+
+        plan = {"moves": [], "folders": set(), "toc_entries": []}
+
+        # Use the new intelligent schema if requested
+        if use_intelligent_schema:
+            schema = self.generate_intelligent_schema(analysis_results)
+            return self._process_intelligent_schema(schema, analysis_results)
+
+        # Original implementation - process files individually
+        else:
+            for result in analysis_results:
+                original_path = Path(result["path"])
+
+                # Create folder path
+                folder_name = self._sanitize_folder_name(result["suggested_folder"])
+                new_folder = self.base_dir / folder_name
+                plan["folders"].add(str(new_folder))
+
+                # Generate new file path
+                new_path = new_folder / original_path.name
+
+                # Add move operation
+                plan["moves"].append(
+                    {
+                        "source": str(original_path),
+                        "destination": str(new_path),
+                        "description": result["description"],
+                        "tags": result["tags"],
+                    }
+                )
+
+                # Add TOC entry
+                plan["toc_entries"].append(
+                    {
+                        "original_path": str(original_path),
+                        "new_path": str(new_path),
+                        "description": result["description"],
+                        "tags": result["tags"],
+                    }
+                )
 
         return plan
 
