@@ -262,3 +262,12 @@ This document outlines planned improvements and features for the LLM Directory O
 - [ ] Remove duplicate API tests at beginning of run "Testing API connection before analysis..."
 - [ ] Need a better method to put exclusions
 - [ ] Really need to fix the categorizations - and allow for sub directories. it should be a call to 4o or something to really organize everything
+- [ ] Should be able to move files into the folders that already exist.
+- [ ] we should really rethink all of this.
+- [ ] should embed the file descriptions.
+- [ ] index the files?
+- [ ] can be used for an os search too
+- [ ] make sure that if the folder contents is a repository, it can treat that repo as a file in the sense that we get a description of that whole folder. and that the inside cannot be organized by the application
+- [ ] a lot of these flags on the cli are not needed... preview? should be like that by default.
+- [ ] async or parallelization
+- [ ] should maybe revert to just reading READMEs for git repos. and if the readme is non existent or too vague, we should likely start analyzing some of the files. not all. tags should include which programming langauge.

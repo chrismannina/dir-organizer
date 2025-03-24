@@ -51,15 +51,36 @@ organizer:
   max_folder_depth: 3
 
   # Whether to preserve project directories
+  # When enabled, files within project directories (like Git repos) won't be moved
+  # This ensures code repositories and project structures remain intact
   preserve_projects: true
 
   # Markers that indicate a directory is a project and should be preserved
+  # Any directory containing these files/folders will be detected as a project
+  # and all files within it will be excluded from organization
   project_markers:
     - ".git"
     - "package.json"
     - "pyproject.toml"
     - "Makefile"
     - "CMakeLists.txt"
+    - "Cargo.toml"
+    - "build.gradle"
+    - "pom.xml"
+    - "go.mod"
+
+  # README detection and analysis for projects
+  # When a project directory is detected, the organizer will look for a README file
+  # to analyze its contents and extract project information
+  readme_analysis: true
+
+  # README file patterns to look for (in order of preference)
+  readme_patterns:
+    - "README.md"
+    - "README.txt"
+    - "README"
+    - "readme.md"
+    - "readme.txt"
 
   # Whether to use cached analysis from database when available
   use_cached_analysis: true
