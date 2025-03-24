@@ -13,6 +13,7 @@ An AI-powered tool that organizes your directories using large language models.
 - **Smart Image Handling**: Extracts and uses EXIF metadata from images for better organization
 - **File Migration**: Command to migrate organizer-generated files to the hidden folder
 - **Repository Preservation**: Automatically detects and preserves code repositories and project directories
+- **Smart Repository Analysis**: Analyzes project directories using README files to understand their purpose
 
 ## Installation
 

@@ -69,6 +69,19 @@ organizer:
     - "pom.xml"
     - "go.mod"
 
+  # README detection and analysis for projects
+  # When a project directory is detected, the organizer will look for a README file
+  # to analyze its contents and extract project information
+  readme_analysis: true
+
+  # README file patterns to look for (in order of preference)
+  readme_patterns:
+    - "README.md"
+    - "README.txt"
+    - "README"
+    - "readme.md"
+    - "readme.txt"
+
   # Whether to use cached analysis from database when available
   use_cached_analysis: true
 
